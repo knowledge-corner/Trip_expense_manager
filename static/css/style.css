@@ -1,0 +1,56 @@
+body {
+  background: #f4f6fb;
+}
+.app-navbar {
+  background: linear-gradient(90deg, #4338ca, #6d28d9);
+}
+.trip-card {
+  border: none;
+  border-radius: 14px;
+  box-shadow: 0 4px 14px rgba(34, 41, 47, 0.08);
+  transition: transform .15s ease, box-shadow .15s ease;
+  height: 100%;
+}
+.trip-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(34, 41, 47, 0.14);
+}
+.trip-card .card-img-top-placeholder {
+  height: 90px;
+  border-radius: 14px 14px 0 0;
+  background: linear-gradient(120deg, #6366f1, #ec4899);
+}
+.badge-status-upcoming { background: #2563eb; }
+.badge-status-ongoing { background: #16a34a; }
+.badge-status-completed { background: #6b7280; }
+.badge-over-budget { background: #dc2626; }
+.stat-card {
+  border: none;
+  border-radius: 14px;
+  box-shadow: 0 4px 14px rgba(34, 41, 47, 0.08);
+}
+.expense-row:hover {
+  background: #f0f1fb;
+}
+#autocomplete-list {
+  position: absolute;
+  z-index: 1050;
+  background: white;
+  border: 1px solid #ddd;
+  width: 100%;
+  max-height: 200px;
+  overflow-y: auto;
+}
+#autocomplete-list .item {
+  padding: 6px 10px;
+  cursor: pointer;
+}
+#autocomplete-list .item:hover {
+  background: #eef2ff;
+}
+input[type="text"], input[type="password"], input[type="email"] {
+  width: 100%;
+  padding: .375rem .75rem;
+  border: 1px solid #ced4da;
+  border-radius: .375rem;
+}

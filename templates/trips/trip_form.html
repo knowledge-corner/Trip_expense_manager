@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}{% if trip_id %}Edit Trip{% else %}New Trip{% endif %} - TripWallet{% endblock %}
+{% block content %}
+<h2 class="fw-bold mb-4">{% if trip_id %}Edit Trip{% else %}Plan a New Trip{% endif %}</h2>
+<form id="trip-form" class="card p-4 shadow-sm" style="max-width:720px;">
+  <div class="mb-3">
+    <label class="form-label">Trip Name</label>
+    <input type="text" class="form-control" id="name" required>
+  </div>
+  <div class="mb-3">
+    <label class="form-label">Description</label>
+    <textarea class="form-control" id="description" rows="2"></textarea>
+  </div>
+  <div class="row">
+    <div class="col-md-6 mb-3 position-relative">
+      <label class="form-label">Destination</label>
+      <input type="text" class="form-control" id="destination" autocomplete="off" required>
+      <div id="autocomplete-list"></div>
+    </div>
+    <div class="col-md-6 mb-3">
+      <label class="form-label">State</label>
+      <input type="text" class="form-control" id="state">
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6 mb-3">
+      <label class="form-label">Start Date</label>
+      <input type="date" class="form-control" id="start_date" required>
+    </div>
+    <div class="col-md-6 mb-3">
+      <label class="form-label">End Date</label>
+      <input type="date" class="form-control" id="end_date">
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-md-6 mb-3">
+      <label class="form-label">Budget (optional)</label>
+      <input type="number" step="0.01" class="form-control" id="budget">
+    </div>
+    <div class="col-md-6 mb-3">
+      <label class="form-label">Expense Split</label>
+      <select class="form-select" id="default_split_type">
+        <option value="single">Single Payer (no split)</option>
+        <option value="equal">Split Among Participants</option>
+      </select>
+    </div>
+  </div>
+  <div class="mb-3" id="participants-field">
+    <label class="form-label">Travellers (comma separated names)</label>
+    <input type="text" class="form-control" id="participant_names" placeholder="e.g. Alice, Bob, Charlie">
+    <div class="form-text">Add the names of everyone travelling. You can edit this list later.</div>
+  </div>
+  <button type="submit" class="btn btn-primary"><i class="bi bi-check-circle"></i> Save Trip</button>
+  <a href="{% url 'trips:home' %}" class="btn btn-link">Cancel</a>
+</form>
+{% endblock %}
+{% block extra_js %}
+<script>const TRIP_ID = {{ trip_id|default:"null" }};</script>
+<script src="/static/js/trip_form.js"></script>
+{% endblock %}
