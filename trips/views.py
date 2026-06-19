@@ -4,10 +4,18 @@ from rest_framework import filters, permissions, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from core.categories import EXPENSE_CATEGORY_MAP
 from expenses.models import Expense
 
-from .models import Trip, TripParticipant
-from .serializers import TripCreateSerializer, TripParticipantSerializer, TripSerializer
+from .models import CategoryBudget, Hotel, ItineraryDay, Trip, TripParticipant
+from .serializers import (
+    CategoryBudgetSerializer,
+    HotelSerializer,
+    ItineraryDaySerializer,
+    TripCreateSerializer,
+    TripParticipantSerializer,
+    TripSerializer,
+)
 
 
 class IsOwnerOrReadOnlyForOthers(permissions.IsAuthenticated):
@@ -18,7 +26,9 @@ class IsOwnerOrReadOnlyForOthers(permissions.IsAuthenticated):
 
 
 class TripViewSet(viewsets.ModelViewSet):
-    queryset = Trip.objects.select_related("created_by").prefetch_related("participants").all()
+    queryset = Trip.objects.select_related("created_by").prefetch_related(
+        "participants", "category_budgets"
+    ).all()
     permission_classes = [IsOwnerOrReadOnlyForOthers]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ["destination", "state"]
@@ -49,18 +59,22 @@ class TripViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["get"])
     def analytics(self, request, pk=None):
         trip = self.get_object()
-        category_totals = (
-            trip.expenses.values("category")
-            .annotate(total=Sum("amount"))
-            .order_by("-total")
+        category_totals = {
+            row["category"]: row["total"]
+            for row in trip.expenses.values("category").annotate(total=Sum("amount"))
+        }
+        all_categories = set(category_totals) | set(
+            trip.category_budgets.values_list("category", flat=True)
         )
+        budgets = {cb.category: cb.allocated_amount for cb in trip.category_budgets.all()}
         category_data = [
             {
-                "category": row["category"],
-                "category_display": dict(Expense._meta.get_field("category").choices).get(row["category"], row["category"]),
-                "total": row["total"],
+                "category": cat,
+                "category_display": EXPENSE_CATEGORY_MAP.get(cat, cat),
+                "total": category_totals.get(cat, 0),
+                "budget": budgets.get(cat),
             }
-            for row in category_totals
+            for cat in sorted(all_categories, key=lambda c: -float(category_totals.get(c, 0)))
         ]
         daily_totals = (
             trip.expenses.values("date").annotate(total=Sum("amount")).order_by("date")
@@ -76,6 +90,7 @@ class TripViewSet(viewsets.ModelViewSet):
                 "trip_id": trip.id,
                 "total_expense": trip.total_expense,
                 "budget": trip.budget,
+                "balance": trip.balance,
                 "is_over_budget": trip.is_over_budget,
                 "by_category": category_data,
                 "by_date": list(daily_totals),
@@ -99,5 +114,23 @@ class TripParticipantViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     filterset_fields = ["trip"]
 
-    def perform_create(self, serializer):
-        serializer.save()
+
+class HotelViewSet(viewsets.ModelViewSet):
+    queryset = Hotel.objects.select_related("trip").all()
+    serializer_class = HotelSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ["trip", "booking_status"]
+
+
+class ItineraryDayViewSet(viewsets.ModelViewSet):
+    queryset = ItineraryDay.objects.select_related("trip", "hotel").all()
+    serializer_class = ItineraryDaySerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ["trip"]
+
+
+class CategoryBudgetViewSet(viewsets.ModelViewSet):
+    queryset = CategoryBudget.objects.select_related("trip").all()
+    serializer_class = CategoryBudgetSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ["trip"]

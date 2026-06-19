@@ -21,7 +21,7 @@ class ExpenseViewSet(viewsets.ModelViewSet):
     serializer_class = ExpenseSerializer
     permission_classes = [IsOwnerOrReadOnlyForOthers]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ["trip", "category", "split_type", "paid_by"]
+    filterset_fields = ["trip", "category", "split_type", "paid_by", "hotel"]
     search_fields = ["description", "location"]
     ordering_fields = ["date", "amount", "created_at"]
 

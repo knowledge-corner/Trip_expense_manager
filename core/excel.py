@@ -9,7 +9,7 @@ from openpyxl import Workbook, load_workbook
 from core.categories import EXPENSE_CATEGORY_MAP
 from expenses.models import Expense, ExpenseSplit
 from reviews.models import PlaceReview
-from trips.models import Trip, TripParticipant
+from trips.models import CategoryBudget, Hotel, ItineraryDay, Trip, TripParticipant
 
 User = get_user_model()
 
@@ -42,15 +42,41 @@ def build_backup_workbook() -> Workbook:
     for p in TripParticipant.objects.all():
         participants_ws.append([p.id, p.trip_id, p.name, p.user.username if p.user_id else ""])
 
+    hotels_ws = wb.create_sheet("Hotels")
+    hotels_ws.append(
+        ["id", "trip_id", "name", "location", "check_in_date", "check_out_date",
+         "meal_plan", "booking_status", "notes"]
+    )
+    for h in Hotel.objects.all():
+        hotels_ws.append(
+            [h.id, h.trip_id, h.name, h.location,
+             h.check_in_date.isoformat() if h.check_in_date else "",
+             h.check_out_date.isoformat() if h.check_out_date else "",
+             h.meal_plan, h.booking_status, h.notes]
+        )
+
+    itinerary_ws = wb.create_sheet("ItineraryDays")
+    itinerary_ws.append(["id", "trip_id", "date", "event", "hotel_id", "notes", "order"])
+    for day in ItineraryDay.objects.all():
+        itinerary_ws.append(
+            [day.id, day.trip_id, day.date.isoformat(), day.event, day.hotel_id or "",
+             day.notes, day.order]
+        )
+
+    budgets_ws = wb.create_sheet("CategoryBudgets")
+    budgets_ws.append(["id", "trip_id", "category", "allocated_amount"])
+    for b in CategoryBudget.objects.all():
+        budgets_ws.append([b.id, b.trip_id, b.category, float(b.allocated_amount)])
+
     expenses_ws = wb.create_sheet("Expenses")
     expenses_ws.append(
         ["id", "trip_id", "category", "amount", "date", "description", "location",
-         "paid_by_id", "split_type", "created_by_username", "created_at"]
+         "hotel_id", "paid_by_id", "split_type", "created_by_username", "created_at"]
     )
     for e in Expense.objects.all():
         expenses_ws.append(
             [e.id, e.trip_id, e.category, float(e.amount), e.date.isoformat(),
-             e.description, e.location, e.paid_by_id or "", e.split_type,
+             e.description, e.location, e.hotel_id or "", e.paid_by_id or "", e.split_type,
              e.created_by.username if e.created_by_id else "",
              e.created_at.isoformat() if e.created_at else ""]
         )
@@ -62,13 +88,13 @@ def build_backup_workbook() -> Workbook:
 
     reviews_ws = wb.create_sheet("Reviews")
     reviews_ws.append(
-        ["id", "trip_id", "place_name", "place_type", "location", "rating",
+        ["id", "trip_id", "place_name", "place_type", "location", "hotel_id", "rating",
          "amount_spent", "review_text", "would_revisit", "alternative_suggestion",
          "created_by_username", "created_at"]
     )
     for r in PlaceReview.objects.all():
         reviews_ws.append(
-            [r.id, r.trip_id, r.place_name, r.place_type, r.location, r.rating,
+            [r.id, r.trip_id, r.place_name, r.place_type, r.location, r.hotel_id or "", r.rating,
              float(r.amount_spent) if r.amount_spent is not None else "",
              r.review_text, r.would_revisit, r.alternative_suggestion,
              r.created_by.username if r.created_by_id else "",
@@ -88,10 +114,16 @@ def restore_backup_workbook(wb: Workbook, clear_existing=False):
         ExpenseSplit.objects.all().delete()
         Expense.objects.all().delete()
         PlaceReview.objects.all().delete()
+        ItineraryDay.objects.all().delete()
+        CategoryBudget.objects.all().delete()
+        Hotel.objects.all().delete()
         TripParticipant.objects.all().delete()
         Trip.objects.all().delete()
 
-    summary = {"trips": 0, "participants": 0, "expenses": 0, "splits": 0, "reviews": 0}
+    summary = {
+        "trips": 0, "participants": 0, "hotels": 0, "itinerary_days": 0,
+        "category_budgets": 0, "expenses": 0, "splits": 0, "reviews": 0,
+    }
 
     def _date(v):
         if isinstance(v, datetime):
@@ -133,17 +165,75 @@ def restore_backup_workbook(wb: Workbook, clear_existing=False):
         )
         summary["participants"] += 1
 
+    if "Hotels" in wb.sheetnames:
+        ws = wb["Hotels"]
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if row[0] is None:
+                continue
+            (hid, trip_id, name, location, check_in, check_out, meal_plan,
+             booking_status, notes) = row
+            Hotel.objects.update_or_create(
+                id=hid,
+                defaults=dict(
+                    trip_id=trip_id, name=name, location=location or "",
+                    check_in_date=_date(check_in) if check_in else None,
+                    check_out_date=_date(check_out) if check_out else None,
+                    meal_plan=meal_plan or Hotel.MEAL_NONE,
+                    booking_status=booking_status or Hotel.STATUS_PLANNED,
+                    notes=notes or "",
+                ),
+            )
+            summary["hotels"] += 1
+
+    if "ItineraryDays" in wb.sheetnames:
+        ws = wb["ItineraryDays"]
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if row[0] is None:
+                continue
+            iid, trip_id, idate, event, hotel_id, notes, order = row
+            ItineraryDay.objects.update_or_create(
+                id=iid,
+                defaults=dict(
+                    trip_id=trip_id, date=_date(idate), event=event or "",
+                    hotel_id=hotel_id or None, notes=notes or "", order=order or 0,
+                ),
+            )
+            summary["itinerary_days"] += 1
+
+    if "CategoryBudgets" in wb.sheetnames:
+        ws = wb["CategoryBudgets"]
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            if row[0] is None:
+                continue
+            bid, trip_id, category, allocated_amount = row
+            CategoryBudget.objects.update_or_create(
+                id=bid,
+                defaults=dict(
+                    trip_id=trip_id, category=category,
+                    allocated_amount=Decimal(str(allocated_amount)),
+                ),
+            )
+            summary["category_budgets"] += 1
+
     ws = wb["Expenses"]
+    header = [c.value for c in next(ws.iter_rows(min_row=1, max_row=1))]
+    has_hotel_col = "hotel_id" in header
     for row in ws.iter_rows(min_row=2, values_only=True):
         if row[0] is None:
             continue
-        (eid, trip_id, category, amount, edate, desc, location, paid_by_id,
-         split_type, username, _created) = row
+        if has_hotel_col:
+            (eid, trip_id, category, amount, edate, desc, location, hotel_id, paid_by_id,
+             split_type, username, _created) = row
+        else:
+            (eid, trip_id, category, amount, edate, desc, location, paid_by_id,
+             split_type, username, _created) = row
+            hotel_id = None
         Expense.objects.update_or_create(
             id=eid,
             defaults=dict(
                 trip_id=trip_id, category=category, amount=Decimal(str(amount)),
                 date=_date(edate), description=desc or "", location=location or "",
+                hotel_id=hotel_id or None,
                 paid_by_id=paid_by_id or None, split_type=split_type or Expense.SPLIT_SINGLE,
                 created_by=_get_user(username),
             ),
@@ -163,16 +253,23 @@ def restore_backup_workbook(wb: Workbook, clear_existing=False):
 
     if "Reviews" in wb.sheetnames:
         ws = wb["Reviews"]
+        header = [c.value for c in next(ws.iter_rows(min_row=1, max_row=1))]
+        has_hotel_col = "hotel_id" in header
         for row in ws.iter_rows(min_row=2, values_only=True):
             if row[0] is None:
                 continue
-            (rid, trip_id, place_name, place_type, location, rating, amount_spent,
-             review_text, would_revisit, alt, username, _created) = row
+            if has_hotel_col:
+                (rid, trip_id, place_name, place_type, location, hotel_id, rating,
+                 amount_spent, review_text, would_revisit, alt, username, _created) = row
+            else:
+                (rid, trip_id, place_name, place_type, location, rating, amount_spent,
+                 review_text, would_revisit, alt, username, _created) = row
+                hotel_id = None
             PlaceReview.objects.update_or_create(
                 id=rid,
                 defaults=dict(
                     trip_id=trip_id, place_name=place_name, place_type=place_type or "other",
-                    location=location or "", rating=rating or 5,
+                    location=location or "", hotel_id=hotel_id or None, rating=rating or 5,
                     amount_spent=Decimal(str(amount_spent)) if amount_spent not in (None, "") else None,
                     review_text=review_text or "", would_revisit=bool(would_revisit),
                     alternative_suggestion=alt or "", created_by=_get_user(username),

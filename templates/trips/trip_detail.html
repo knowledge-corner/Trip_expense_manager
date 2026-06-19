@@ -18,6 +18,8 @@
 
 <ul class="nav nav-tabs" id="tripTabs">
   <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-expenses">Expenses</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-itinerary">Itinerary &amp; Hotels</button></li>
+  <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-budget">Budget</button></li>
   <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-analytics">Analytics</button></li>
   <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-reviews">Places &amp; Reviews</button></li>
   <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-participants">Travellers</button></li>
@@ -48,6 +50,35 @@
         <tbody id="expense-rows"></tbody>
       </table>
     </div>
+  </div>
+
+  <div class="tab-pane fade" id="tab-itinerary">
+    <div class="row g-3">
+      <div class="col-md-7">
+        <div class="d-flex justify-content-between mb-2">
+          <h6 class="fw-bold mb-0">Day-by-Day Plan</h6>
+          <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#dayModal" onclick="openDayModal()"><i class="bi bi-plus-circle"></i> Add Day</button>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-hover align-middle">
+            <thead><tr><th>Date</th><th>Day</th><th>Event/Route</th><th>Hotel</th><th>Notes</th><th></th></tr></thead>
+            <tbody id="itinerary-rows"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="col-md-5">
+        <div class="d-flex justify-content-between mb-2">
+          <h6 class="fw-bold mb-0">Hotel Bookings</h6>
+          <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#hotelModal" onclick="openHotelModal()"><i class="bi bi-plus-circle"></i> Add Hotel</button>
+        </div>
+        <div id="hotel-cards" class="d-flex flex-column gap-2"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-pane fade" id="tab-budget">
+    <div class="row g-3 mb-3" id="budget-stat-cards"></div>
+    <div id="budget-rows"></div>
   </div>
 
   <div class="tab-pane fade" id="tab-analytics">
@@ -88,6 +119,7 @@
           <div class="mb-2"><label class="form-label">Date</label><input type="date" class="form-control" id="exp-date" required></div>
           <div class="mb-2"><label class="form-label">Description</label><input type="text" class="form-control" id="exp-description"></div>
           <div class="mb-2 position-relative"><label class="form-label">Location</label><input type="text" class="form-control" id="exp-location" autocomplete="off"><div id="exp-autocomplete-list"></div></div>
+          <div class="mb-2 d-none" id="exp-hotel-field"><label class="form-label">Linked Hotel Booking</label><select class="form-select" id="exp-hotel"><option value="">--</option></select></div>
           <div class="mb-2"><label class="form-label">Paid By</label><select class="form-select" id="exp-paid-by"><option value="">--</option></select></div>
           <div class="mb-2"><label class="form-label">Split Type</label>
             <select class="form-select" id="exp-split-type">
@@ -128,6 +160,62 @@
           <div class="mb-2"><label class="form-label">Better Alternative Nearby?</label><input type="text" class="form-control" id="rev-alternative" placeholder="e.g. XYZ Restaurant was better"></div>
         </div>
         <div class="modal-footer"><button type="submit" class="btn btn-primary">Save Review</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+<!-- Itinerary Day Modal -->
+<div class="modal fade" id="dayModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="day-form">
+        <div class="modal-header"><h5 class="modal-title">Add Itinerary Day</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <input type="hidden" id="day-id">
+          <div class="mb-2"><label class="form-label">Date</label><input type="date" class="form-control" id="day-date" required></div>
+          <div class="mb-2"><label class="form-label">Event / Route</label><input type="text" class="form-control" id="day-event" placeholder="e.g. Mumbai → Goa by flight"></div>
+          <div class="mb-2"><label class="form-label">Hotel</label><select class="form-select" id="day-hotel"><option value="">--</option></select></div>
+          <div class="mb-2"><label class="form-label">Notes / Plan</label><textarea class="form-control" id="day-notes" rows="3"></textarea></div>
+        </div>
+        <div class="modal-footer"><button type="submit" class="btn btn-primary">Save</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Hotel Modal -->
+<div class="modal fade" id="hotelModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="hotel-form">
+        <div class="modal-header"><h5 class="modal-title">Add Hotel</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <input type="hidden" id="hotel-id">
+          <div class="mb-2"><label class="form-label">Name</label><input type="text" class="form-control" id="hotel-name" required></div>
+          <div class="mb-2"><label class="form-label">Location</label><input type="text" class="form-control" id="hotel-location"></div>
+          <div class="row">
+            <div class="col-6 mb-2"><label class="form-label">Check-in</label><input type="date" class="form-control" id="hotel-checkin"></div>
+            <div class="col-6 mb-2"><label class="form-label">Check-out</label><input type="date" class="form-control" id="hotel-checkout"></div>
+          </div>
+          <div class="mb-2"><label class="form-label">Meal Plan</label>
+            <select class="form-select" id="hotel-meal">
+              <option value="none">No Meals</option>
+              <option value="breakfast">Breakfast Only</option>
+              <option value="breakfast_dinner">Breakfast + Dinner</option>
+              <option value="all_meals">All Meals</option>
+            </select>
+          </div>
+          <div class="mb-2"><label class="form-label">Booking Status</label>
+            <select class="form-select" id="hotel-status">
+              <option value="planned">Planned</option>
+              <option value="booked">Booked</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div class="mb-2"><label class="form-label">Notes</label><textarea class="form-control" id="hotel-notes" rows="2"></textarea></div>
+        </div>
+        <div class="modal-footer"><button type="submit" class="btn btn-primary">Save</button></div>
       </form>
     </div>
   </div>

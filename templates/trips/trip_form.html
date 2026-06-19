@@ -50,6 +50,11 @@
     <input type="text" class="form-control" id="participant_names" placeholder="e.g. Alice, Bob, Charlie">
     <div class="form-text">Add the names of everyone travelling. You can edit this list later.</div>
   </div>
+  <div class="mb-3" id="category-budget-field">
+    <label class="form-label">Allocate Budget by Category (optional, helps track planning)</label>
+    <div class="form-text mb-2">Set how much you expect to spend on each major category. You can edit these anytime from the trip's Budget tab.</div>
+    <div class="row g-2" id="category-budget-grid"></div>
+  </div>
   <button type="submit" class="btn btn-primary"><i class="bi bi-check-circle"></i> Save Trip</button>
   <a href="{% url 'trips:home' %}" class="btn btn-link">Cancel</a>
 </form>

@@ -29,6 +29,20 @@ async function setupDestinationAutocomplete() {
   });
 }
 
+async function renderCategoryBudgetGrid() {
+  const categories = await apiGet("/api/expenses/categories/");
+  const grid = document.getElementById("category-budget-grid");
+  grid.innerHTML = categories
+    .map(
+      (c) => `
+    <div class="col-md-4">
+      <label class="form-label small mb-0">${c.label}</label>
+      <input type="number" step="0.01" min="0" class="form-control form-control-sm cat-budget-input" data-category="${c.value}" placeholder="0">
+    </div>`
+    )
+    .join("");
+}
+
 async function loadTripForEdit() {
   if (!TRIP_ID) return;
   const trip = await apiGet(`/api/trips/${TRIP_ID}/`);
@@ -41,6 +55,7 @@ async function loadTripForEdit() {
   document.getElementById("budget").value = trip.budget || "";
   document.getElementById("default_split_type").value = trip.default_split_type;
   document.getElementById("participants-field").style.display = "none";
+  document.getElementById("category-budget-field").style.display = "none";
 }
 
 document.getElementById("trip-form").addEventListener("submit", async (e) => {
@@ -66,6 +81,11 @@ document.getElementById("trip-form").addEventListener("submit", async (e) => {
         .map((n) => n.trim())
         .filter((n) => n);
       payload.participant_names = names;
+      const categoryBudgets = {};
+      document.querySelectorAll(".cat-budget-input").forEach((input) => {
+        if (input.value) categoryBudgets[input.dataset.category] = input.value;
+      });
+      if (Object.keys(categoryBudgets).length) payload.category_budgets = categoryBudgets;
       trip = await apiPost("/api/trips/", payload);
     }
     window.location.href = `/trips/${trip.id}/`;
@@ -76,5 +96,6 @@ document.getElementById("trip-form").addEventListener("submit", async (e) => {
 
 document.addEventListener("DOMContentLoaded", () => {
   setupDestinationAutocomplete();
+  renderCategoryBudgetGrid();
   loadTripForEdit();
 });

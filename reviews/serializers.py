@@ -5,6 +5,7 @@ from .models import PlaceReview
 
 class PlaceReviewSerializer(serializers.ModelSerializer):
     created_by_name = serializers.ReadOnlyField(source="created_by.username")
+    hotel_name = serializers.ReadOnlyField(source="hotel.name", default=None)
 
     class Meta:
         model = PlaceReview
@@ -14,6 +15,8 @@ class PlaceReviewSerializer(serializers.ModelSerializer):
             "place_name",
             "place_type",
             "location",
+            "hotel",
+            "hotel_name",
             "rating",
             "amount_spent",
             "review_text",

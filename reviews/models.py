@@ -2,7 +2,7 @@ from django.conf import settings
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
-from trips.models import Trip
+from trips.models import Hotel, Trip
 
 
 class PlaceReview(models.Model):
@@ -19,6 +19,14 @@ class PlaceReview(models.Model):
         max_length=20, choices=PLACE_TYPE_CHOICES, default="restaurant"
     )
     location = models.CharField(max_length=200, blank=True)
+    hotel = models.ForeignKey(
+        Hotel,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="reviews",
+        help_text="Link this review to a hotel booking, if applicable.",
+    )
     rating = models.PositiveSmallIntegerField(
         default=5, validators=[MinValueValidator(1), MaxValueValidator(5)]
     )

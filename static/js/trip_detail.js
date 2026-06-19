@@ -1,5 +1,6 @@
 let CATEGORIES = [];
 let PARTICIPANTS = [];
+let HOTELS = [];
 let charts = {};
 
 async function loadTripOverview() {
@@ -15,7 +16,7 @@ async function loadTripOverview() {
     <div class="col-md-3"><div class="card stat-card p-3"><div class="text-muted small">Status</div><div class="fs-5 text-capitalize">${trip.status}</div></div></div>
     <div class="col-md-3"><div class="card stat-card p-3"><div class="text-muted small">Total Spent</div><div class="fs-5">${formatMoney(trip.total_expense)}</div></div></div>
     <div class="col-md-3"><div class="card stat-card p-3"><div class="text-muted small">Budget</div><div class="fs-5">${trip.budget ? formatMoney(trip.budget) : "Not set"}${overBudgetBadge}</div></div></div>
-    <div class="col-md-3"><div class="card stat-card p-3"><div class="text-muted small">Travellers</div><div class="fs-5">${trip.participants.length}</div></div></div>
+    <div class="col-md-3"><div class="card stat-card p-3"><div class="text-muted small">Balance</div><div class="fs-5 ${trip.balance !== null && trip.balance < 0 ? "text-danger" : ""}">${trip.balance !== null ? formatMoney(trip.balance) : "-"}</div></div></div>
   `;
   PARTICIPANTS = trip.participants;
   populateParticipantSelect();
@@ -26,6 +27,16 @@ function populateParticipantSelect() {
   const sel = document.getElementById("exp-paid-by");
   sel.innerHTML = '<option value="">--</option>' + PARTICIPANTS.map((p) => `<option value="${p.id}">${p.name}</option>`).join("");
 }
+
+function populateHotelSelects() {
+  const opts = '<option value="">--</option>' + HOTELS.map((h) => `<option value="${h.id}">${h.name}</option>`).join("");
+  document.getElementById("exp-hotel").innerHTML = opts;
+  document.getElementById("day-hotel").innerHTML = opts;
+}
+
+document.getElementById("exp-category").addEventListener("change", (e) => {
+  document.getElementById("exp-hotel-field").classList.toggle("d-none", e.target.value !== "hotel");
+});
 
 async function loadCategories() {
   CATEGORIES = await apiGet("/api/expenses/categories/");
@@ -88,6 +99,8 @@ function openExpenseModal() {
   document.getElementById("exp-id").value = "";
   document.getElementById("custom-split-area").classList.add("d-none");
   document.getElementById("exp-date").value = new Date().toISOString().slice(0, 10);
+  document.getElementById("exp-hotel").value = "";
+  document.getElementById("exp-hotel-field").classList.add("d-none");
 }
 
 function editExpense(e) {
@@ -99,6 +112,8 @@ function editExpense(e) {
   document.getElementById("exp-location").value = e.location || "";
   document.getElementById("exp-paid-by").value = e.paid_by || "";
   document.getElementById("exp-split-type").value = e.split_type;
+  document.getElementById("exp-hotel").value = e.hotel || "";
+  document.getElementById("exp-hotel-field").classList.toggle("d-none", e.category !== "hotel");
   if (e.split_type === "custom") {
     renderCustomSplitArea();
     document.getElementById("custom-split-area").classList.remove("d-none");
@@ -131,6 +146,7 @@ document.getElementById("expense-form").addEventListener("submit", async (e) => 
     description: document.getElementById("exp-description").value,
     location: document.getElementById("exp-location").value,
     paid_by: document.getElementById("exp-paid-by").value || null,
+    hotel: document.getElementById("exp-hotel").value || null,
     split_type: splitType,
   };
   if (splitType === "custom") {
@@ -294,10 +310,201 @@ async function deleteTrip() {
   window.location.href = "/";
 }
 
+async function loadHotels() {
+  const data = await apiGet(`/api/hotels/?trip=${TRIP_ID}`);
+  HOTELS = data.results || data;
+  populateHotelSelects();
+  document.getElementById("hotel-cards").innerHTML = HOTELS.map(
+    (h) => `
+    <div class="card p-2">
+      <div class="d-flex justify-content-between">
+        <strong>${h.name}</strong>
+        <div>
+          <button class="btn btn-sm btn-outline-secondary" onclick='editHotel(${JSON.stringify(h)})'><i class="bi bi-pencil"></i></button>
+          <button class="btn btn-sm btn-outline-danger" onclick="deleteHotel(${h.id})"><i class="bi bi-trash"></i></button>
+        </div>
+      </div>
+      <div class="small text-muted">${h.location || ""}</div>
+      <div class="small">${h.check_in_date || "?"} → ${h.check_out_date || "?"}</div>
+      <div class="small text-capitalize">Status: ${h.booking_status} · ${h.meal_plan.replace("_", " ")}</div>
+      <div class="small fw-bold">Paid so far: ${formatMoney(h.amount_paid)}</div>
+    </div>`
+  ).join("");
+}
+
+function openHotelModal() {
+  document.getElementById("hotel-form").reset();
+  document.getElementById("hotel-id").value = "";
+}
+
+function editHotel(h) {
+  document.getElementById("hotel-id").value = h.id;
+  document.getElementById("hotel-name").value = h.name;
+  document.getElementById("hotel-location").value = h.location || "";
+  document.getElementById("hotel-checkin").value = h.check_in_date || "";
+  document.getElementById("hotel-checkout").value = h.check_out_date || "";
+  document.getElementById("hotel-meal").value = h.meal_plan;
+  document.getElementById("hotel-status").value = h.booking_status;
+  document.getElementById("hotel-notes").value = h.notes || "";
+  new bootstrap.Modal(document.getElementById("hotelModal")).show();
+}
+
+async function deleteHotel(id) {
+  if (!confirm("Delete this hotel booking?")) return;
+  await apiDelete(`/api/hotels/${id}/`);
+  loadHotels();
+  loadItinerary();
+}
+
+document.getElementById("hotel-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const id = document.getElementById("hotel-id").value;
+  const payload = {
+    trip: TRIP_ID,
+    name: document.getElementById("hotel-name").value,
+    location: document.getElementById("hotel-location").value,
+    check_in_date: document.getElementById("hotel-checkin").value || null,
+    check_out_date: document.getElementById("hotel-checkout").value || null,
+    meal_plan: document.getElementById("hotel-meal").value,
+    booking_status: document.getElementById("hotel-status").value,
+    notes: document.getElementById("hotel-notes").value,
+  };
+  try {
+    if (id) {
+      await apiPatch(`/api/hotels/${id}/`, payload);
+    } else {
+      await apiPost("/api/hotels/", payload);
+    }
+    bootstrap.Modal.getInstance(document.getElementById("hotelModal")).hide();
+    showToast("Hotel saved");
+    loadHotels();
+  } catch (err) {
+    showToast("Error: " + JSON.stringify(err.data || {}), "danger");
+  }
+});
+
+async function loadItinerary() {
+  const data = await apiGet(`/api/itinerary-days/?trip=${TRIP_ID}`);
+  const rows = data.results || data;
+  document.getElementById("itinerary-rows").innerHTML = rows
+    .map(
+      (d) => `
+    <tr>
+      <td>${d.date}</td>
+      <td>${d.day_name}</td>
+      <td>${d.event || ""}</td>
+      <td>${d.hotel_name || "-"}</td>
+      <td>${d.notes || ""}</td>
+      <td>
+        <button class="btn btn-sm btn-outline-secondary" onclick='editDay(${JSON.stringify(d)})'><i class="bi bi-pencil"></i></button>
+        <button class="btn btn-sm btn-outline-danger" onclick="deleteDay(${d.id})"><i class="bi bi-trash"></i></button>
+      </td>
+    </tr>`
+    )
+    .join("");
+}
+
+function openDayModal() {
+  document.getElementById("day-form").reset();
+  document.getElementById("day-id").value = "";
+}
+
+function editDay(d) {
+  document.getElementById("day-id").value = d.id;
+  document.getElementById("day-date").value = d.date;
+  document.getElementById("day-event").value = d.event || "";
+  document.getElementById("day-hotel").value = d.hotel || "";
+  document.getElementById("day-notes").value = d.notes || "";
+  new bootstrap.Modal(document.getElementById("dayModal")).show();
+}
+
+async function deleteDay(id) {
+  if (!confirm("Delete this itinerary day?")) return;
+  await apiDelete(`/api/itinerary-days/${id}/`);
+  loadItinerary();
+}
+
+document.getElementById("day-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const id = document.getElementById("day-id").value;
+  const payload = {
+    trip: TRIP_ID,
+    date: document.getElementById("day-date").value,
+    event: document.getElementById("day-event").value,
+    hotel: document.getElementById("day-hotel").value || null,
+    notes: document.getElementById("day-notes").value,
+  };
+  try {
+    if (id) {
+      await apiPatch(`/api/itinerary-days/${id}/`, payload);
+    } else {
+      await apiPost("/api/itinerary-days/", payload);
+    }
+    bootstrap.Modal.getInstance(document.getElementById("dayModal")).hide();
+    showToast("Day saved");
+    loadItinerary();
+  } catch (err) {
+    showToast("Error: " + JSON.stringify(err.data || {}), "danger");
+  }
+});
+
+async function loadBudget() {
+  const trip = await apiGet(`/api/trips/${TRIP_ID}/`);
+  const analytics = await apiGet(`/api/trips/${TRIP_ID}/analytics/`);
+  document.getElementById("budget-stat-cards").innerHTML = `
+    <div class="col-md-4"><div class="card stat-card p-3"><div class="text-muted small">Overall Budget</div><div class="fs-5">${trip.budget ? formatMoney(trip.budget) : "Not set"}</div></div></div>
+    <div class="col-md-4"><div class="card stat-card p-3"><div class="text-muted small">Total Spent</div><div class="fs-5">${formatMoney(trip.total_expense)}</div></div></div>
+    <div class="col-md-4"><div class="card stat-card p-3"><div class="text-muted small">Balance</div><div class="fs-5 ${trip.balance !== null && trip.balance < 0 ? "text-danger" : ""}">${trip.balance !== null ? formatMoney(trip.balance) : "-"}</div></div></div>
+  `;
+  document.getElementById("budget-rows").innerHTML = analytics.by_category
+    .map((c) => {
+      const budget = c.budget ? Number(c.budget) : 0;
+      const total = Number(c.total);
+      const pct = budget ? Math.min(100, (total / budget) * 100) : 0;
+      const over = budget && total > budget;
+      return `
+      <div class="mb-3">
+        <div class="d-flex justify-content-between">
+          <span>${c.category_display}</span>
+          <span class="${over ? "text-danger" : ""}">${formatMoney(total)} ${budget ? "/ " + formatMoney(budget) : ""}</span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+          <div class="progress flex-grow-1" style="height:8px;">
+            <div class="progress-bar ${over ? "bg-danger" : "bg-primary"}" style="width:${pct}%"></div>
+          </div>
+          <input type="number" step="0.01" class="form-control form-control-sm budget-input" style="width:100px;" data-category="${c.category}" placeholder="Set budget" value="${c.budget || ""}">
+        </div>
+      </div>`;
+    })
+    .join("");
+  document.querySelectorAll(".budget-input").forEach((input) => {
+    input.addEventListener("change", () => saveCategoryBudget(input.dataset.category, input.value));
+  });
+}
+
+async function saveCategoryBudget(category, value) {
+  if (!value) return;
+  try {
+    const data = await apiGet(`/api/category-budgets/?trip=${TRIP_ID}&category=${category}`);
+    const existing = (data.results || data)[0];
+    if (existing) {
+      await apiPatch(`/api/category-budgets/${existing.id}/`, { allocated_amount: value });
+    } else {
+      await apiPost("/api/category-budgets/", { trip: TRIP_ID, category, allocated_amount: value });
+    }
+    showToast("Budget updated");
+    loadBudget();
+  } catch (err) {
+    showToast("Error: " + JSON.stringify(err.data || {}), "danger");
+  }
+}
+
 function refreshAll() {
   loadTripOverview();
   loadExpenses();
   loadAnalytics();
+  loadHotels();
+  loadItinerary();
 }
 
 document.getElementById("import-form").addEventListener("submit", () => {
@@ -307,10 +514,13 @@ document.getElementById("import-form").addEventListener("submit", () => {
 document.addEventListener("DOMContentLoaded", async () => {
   await loadCategories();
   await loadTripOverview();
+  await loadHotels();
   setupExpenseLocationAutocomplete();
   loadExpenses();
   loadReviews();
+  loadItinerary();
   document.getElementById("tripTabs").addEventListener("shown.bs.tab", (e) => {
     if (e.target.dataset.bsTarget === "#tab-analytics") loadAnalytics();
+    if (e.target.dataset.bsTarget === "#tab-budget") loadBudget();
   });
 });

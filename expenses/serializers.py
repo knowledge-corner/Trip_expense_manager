@@ -19,6 +19,7 @@ class ExpenseSerializer(serializers.ModelSerializer):
     splits = ExpenseSplitSerializer(many=True, required=False)
     category_display = serializers.ReadOnlyField(source="get_category_display")
     paid_by_name = serializers.ReadOnlyField(source="paid_by.name", default=None)
+    hotel_name = serializers.ReadOnlyField(source="hotel.name", default=None)
     created_by_name = serializers.ReadOnlyField(source="created_by.username")
 
     class Meta:
@@ -32,6 +33,8 @@ class ExpenseSerializer(serializers.ModelSerializer):
             "date",
             "description",
             "location",
+            "hotel",
+            "hotel_name",
             "paid_by",
             "paid_by_name",
             "split_type",
