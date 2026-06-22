@@ -12,7 +12,9 @@ from trips.models import Trip
 from .excel import (
     build_backup_workbook,
     build_expense_import_template,
+    build_itinerary_import_template,
     import_trip_expenses,
+    import_trip_itinerary,
     restore_backup_workbook,
 )
 
@@ -68,6 +70,32 @@ def expense_import(request, trip_id):
         created, errors = import_trip_expenses(trip, wb, request.user)
         if created:
             messages.success(request, f"Imported {created} expenses.")
+        if errors:
+            messages.warning(request, "Some rows could not be imported: " + "; ".join(errors[:10]))
+    else:
+        messages.error(request, "Please choose an .xlsx file to import.")
+    return redirect("trips:trip_detail", pk=trip_id)
+
+
+@login_required
+def itinerary_import_template(request):
+    wb = build_itinerary_import_template()
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = 'attachment; filename="itinerary_import_template.xlsx"'
+    wb.save(response)
+    return response
+
+
+@login_required
+def itinerary_import(request, trip_id):
+    trip = get_object_or_404(Trip, pk=trip_id)
+    if request.method == "POST" and request.FILES.get("itinerary_file"):
+        wb = load_workbook(request.FILES["itinerary_file"])
+        created, errors = import_trip_itinerary(trip, wb, request.user)
+        if created:
+            messages.success(request, f"Imported {created} itinerary days.")
         if errors:
             messages.warning(request, "Some rows could not be imported: " + "; ".join(errors[:10]))
     else:

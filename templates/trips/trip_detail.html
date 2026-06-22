@@ -55,9 +55,17 @@
   <div class="tab-pane fade" id="tab-itinerary">
     <div class="row g-3">
       <div class="col-md-7">
-        <div class="d-flex justify-content-between mb-2">
+        <div class="d-flex justify-content-between mb-2 flex-wrap gap-2">
           <h6 class="fw-bold mb-0">Day-by-Day Plan</h6>
-          <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#dayModal" onclick="openDayModal()"><i class="bi bi-plus-circle"></i> Add Day</button>
+          <div class="d-flex gap-2 flex-wrap">
+            <a class="btn btn-sm btn-outline-secondary" href="/backup/itinerary-template/"><i class="bi bi-download"></i> Template</a>
+            <form id="itinerary-import-form" class="d-flex gap-1" enctype="multipart/form-data" method="post" action="/backup/trips/{{ trip.id }}/import-itinerary/">
+              {% csrf_token %}
+              <input type="file" name="itinerary_file" class="form-control form-control-sm" accept=".xlsx" required>
+              <button class="btn btn-sm btn-outline-secondary" type="submit"><i class="bi bi-upload"></i> Import</button>
+            </form>
+            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#dayModal" onclick="openDayModal()"><i class="bi bi-plus-circle"></i> Add Day</button>
+          </div>
         </div>
         <div class="table-responsive">
           <table class="table table-hover align-middle">

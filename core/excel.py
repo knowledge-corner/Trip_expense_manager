@@ -300,6 +300,65 @@ def build_expense_import_template() -> Workbook:
     return wb
 
 
+ITINERARY_IMPORT_HEADERS = ["date", "day", "travel", "stay", "activities"]
+ITINERARY_SHEET_ALIASES = ("Itinerary", "Itenary")
+
+
+def build_itinerary_import_template() -> Workbook:
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Itinerary"
+    ws.append(ITINERARY_IMPORT_HEADERS)
+    ws.append(["2026-01-25", "Sunday", "Mumbai - Port Blair", "Bay Leaf Inn, Port Blair", "Cellular Jail\nCorbyn's Cove Beach"])
+    return wb
+
+
+def import_trip_itinerary(trip: Trip, wb: Workbook, created_by=None):
+    """Import a day-wise itinerary (Date, Day, Travel, Stay, Activities) like the
+    Google Sheets the user already plans trips with. 'Travel' becomes the day's
+    event, 'Stay' + 'Activities' are combined into notes since hotel names in
+    these sheets are free-text and not reliably mappable to a Hotel record.
+    """
+    sheet_name = wb.active.title
+    for alias in ITINERARY_SHEET_ALIASES:
+        if alias in wb.sheetnames:
+            sheet_name = alias
+            break
+    ws = wb[sheet_name]
+    header = [c.value for c in next(ws.iter_rows(min_row=1, max_row=1))]
+    header = [str(h).strip().lower() if h else "" for h in header]
+    created, errors = 0, []
+    existing_max_order = ItineraryDay.objects.filter(trip=trip).count()
+    for idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+        if not row or all(v is None for v in row):
+            continue
+        data = dict(zip(header, row))
+        try:
+            idate = data.get("date")
+            if isinstance(idate, datetime):
+                idate = idate.date()
+            elif isinstance(idate, str):
+                idate = datetime.strptime(idate, "%Y-%m-%d").date()
+            if idate is None:
+                raise ValueError("missing date")
+            travel = str(data.get("travel") or data.get("event") or "").strip()
+            stay = str(data.get("stay") or data.get("hotel") or "").strip()
+            activities = str(data.get("activities") or data.get("itinerary") or data.get("notes") or "").strip()
+            notes_parts = []
+            if stay:
+                notes_parts.append(f"Stay: {stay}")
+            if activities:
+                notes_parts.append(activities)
+            ItineraryDay.objects.create(
+                trip=trip, date=idate, event=travel,
+                notes="\n".join(notes_parts), order=existing_max_order + created,
+            )
+            created += 1
+        except Exception as exc:
+            errors.append(f"row {idx}: {exc}")
+    return created, errors
+
+
 def import_trip_expenses(trip: Trip, wb: Workbook, created_by):
     ws = wb.active if wb.active.title == "Expenses" else wb["Expenses"]
     header = [c.value for c in next(ws.iter_rows(min_row=1, max_row=1))]

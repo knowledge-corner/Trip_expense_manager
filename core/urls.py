@@ -10,4 +10,6 @@ urlpatterns = [
     path("restore/", views.backup_restore, name="backup_restore"),
     path("expense-template/", views.expense_import_template, name="expense_import_template"),
     path("trips/<int:trip_id>/import/", views.expense_import, name="expense_import"),
+    path("itinerary-template/", views.itinerary_import_template, name="itinerary_import_template"),
+    path("trips/<int:trip_id>/import-itinerary/", views.itinerary_import, name="itinerary_import"),
 ]
