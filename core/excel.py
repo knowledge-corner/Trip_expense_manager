@@ -318,18 +318,30 @@ def import_trip_itinerary(trip: Trip, wb: Workbook, created_by=None):
     Google Sheets the user already plans trips with. 'Travel' becomes the day's
     event, 'Stay' + 'Activities' are combined into notes since hotel names in
     these sheets are free-text and not reliably mappable to a Hotel record.
+
+    Sheet name and header row position vary across real sheets (e.g. "Itenarary",
+    "Sheet1" with a blank first row), so both are detected rather than assumed.
     """
-    sheet_name = wb.active.title
-    for alias in ITINERARY_SHEET_ALIASES:
-        if alias in wb.sheetnames:
-            sheet_name = alias
+    sheet_name = None
+    for name in wb.sheetnames:
+        if "itiner" in name.lower() or "itenar" in name.lower():
+            sheet_name = name
             break
-    ws = wb[sheet_name]
-    header = [c.value for c in next(ws.iter_rows(min_row=1, max_row=1))]
-    header = [str(h).strip().lower() if h else "" for h in header]
+    ws = wb[sheet_name] if sheet_name else wb.active
+
+    header_row_idx, header = None, None
+    for row in ws.iter_rows(min_row=1, max_row=10):
+        values = [str(c.value).strip().lower() if c.value else "" for c in row]
+        if "date" in values:
+            header_row_idx = row[0].row
+            header = values
+            break
+    if header is None:
+        return 0, ["could not find a header row with a 'Date' column"]
+
     created, errors = 0, []
     existing_max_order = ItineraryDay.objects.filter(trip=trip).count()
-    for idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+    for idx, row in enumerate(ws.iter_rows(min_row=header_row_idx + 1, values_only=True), start=header_row_idx + 1):
         if not row or all(v is None for v in row):
             continue
         data = dict(zip(header, row))
